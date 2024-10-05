@@ -1,14 +1,15 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
+import os
+
+DOTENV = os.path.join(os.path.dirname(__file__), "..", ".env")
 
 class Settings(BaseSettings):
-    DATABASE_URL:str =  "mysql://adler:$Marfil1$@68.183.227.119/log_system"
-    SECRET_KEY:str = "$Marfil$105"
-    ALGORITHM:str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES:int = 1440
+    DATABASE_URL:str 
+    SECRET_KEY:str 
+    ALGORITHM:str 
+    ACCESS_TOKEN_EXPIRE_MINUTES:int
 
-    class Config:
-        case_sensitive = True
-        env_file = ".env"
+    model_config = SettingsConfigDict(env_file=DOTENV, env_file_encoding='utf-8')
 
 settings = Settings()
 
