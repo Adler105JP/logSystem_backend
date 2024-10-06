@@ -1,8 +1,8 @@
-from typing import Dict, List
+from typing import List
 from fastapi import APIRouter, Depends, status, Response, HTTPException
 from sqlalchemy.orm import Session
 from app.db.database import get_db
-from app.models import auth_models, auth_schemas
+from app.models import schemas, user
 from datetime import datetime
 from .ofuscator import get_password_hash, verify_password, create_access_token
 from fastapi.security import OAuth2PasswordBearer
@@ -15,13 +15,13 @@ router = APIRouter(
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="user/login")
 
-@router.post('/login', response_model=auth_schemas.Token)
+@router.post('/login', response_model=schemas.Token)
 def login(
     payload: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    user = db.query(auth_models.User).filter(
-        (auth_models.User.user_name == payload.username) or (auth_models.User.email == payload.username)
+    user = db.query(user.User).filter(
+        (user.User.user_name == payload.username) or (user.User.email == payload.username)
     ).first()
 
     if not user:
@@ -45,12 +45,13 @@ def login(
         "username":user.user_name,
         "first_name":user.first_name,
         "last_name":user.last_name,
+        "id":user.id
 
     }
 
 @router.post("/signup")
-def create_user(request: auth_schemas.UserCreate, db: Session = Depends(get_db)):
-    new_user = auth_models.User(
+def create_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
+    new_user = user.User(
         email=request.email,
         password=get_password_hash(request.password),
         user_name=request.user_name,
@@ -63,18 +64,18 @@ def create_user(request: auth_schemas.UserCreate, db: Session = Depends(get_db))
     return new_user
 
 
-@router.get("/", response_model=List[auth_schemas.UserShow])
+@router.get("/", response_model=List[schemas.User])
 def all_fetch(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db)
 ):
-    users = db.query(auth_models.User).all()
+    users = db.query(user.User).all()
     return users
 
 
-@router.get("/{id}", status_code=status.HTTP_200_OK, response_model=auth_schemas.UserShow)
+@router.get("/{id}", status_code=status.HTTP_200_OK, response_model=schemas.User)
 def show(id, response: Response, db: Session = Depends(get_db)):
-    user = db.query(auth_models.User).filter(auth_models.User.id == id).first()
+    user = db.query(user.User).filter(user.User.id == id).first()
 
     if not user:
         raise HTTPException(
@@ -88,8 +89,8 @@ def show(id, response: Response, db: Session = Depends(get_db)):
 
 
 @router.put("/{id}", status_code=status.HTTP_202_ACCEPTED)
-def update(id, request: auth_schemas.UserBase, db: Session = Depends(get_db)):
-    user = db.query(auth_models.User).filter(auth_models.User.id == id)
+def update(id, request: schemas.UserBase, db: Session = Depends(get_db)):
+    user = db.query(user.User).filter(user.User.id == id)
 
     if not user.first():
         raise HTTPException(
@@ -108,7 +109,7 @@ def update(id, request: auth_schemas.UserBase, db: Session = Depends(get_db)):
 
 @router.delete("/{id}", status_code=status.HTTP_202_ACCEPTED)
 def delete(id, db: Session = Depends(get_db)):
-    user = db.query(auth_models.User).filter(auth_models.User.id == id)
+    user = db.query(user.User).filter(user.User.id == id)
 
     if not user.first():
         raise HTTPException(
