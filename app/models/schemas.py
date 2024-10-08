@@ -2,11 +2,12 @@ from pydantic import BaseModel
 from datetime import datetime
 from uuid import UUID
 from .log import Type_Severity
+from typing import Optional
 
 #-----------Log Schemas-----------
 
 class LogBase(BaseModel):
-    timestamp: datetime
+    timestamp: Optional[datetime] = None
     severity: Type_Severity
     source: str
     message: str | None = None
@@ -16,10 +17,10 @@ class LogCreate(LogBase):
 
 class Log(LogBase):
     id: UUID
-    user_id: UUID
+    user_id: UUID 
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 #-----------User Schemas-----------
@@ -33,10 +34,10 @@ class Token(BaseModel):
     id:UUID
 
 class UserBase(BaseModel):
-    email: str
-    user_name:str
-    first_name:str
-    last_name:str
+    email: Optional[str] = None
+    user_name:Optional[str] = None
+    first_name:Optional[str] = None
+    last_name:Optional[str] = None
 
 class UserCreate(UserBase):
     password: str
@@ -49,5 +50,5 @@ class User(UserBase):
     logs: list[Log] = []
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 

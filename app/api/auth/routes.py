@@ -1,10 +1,11 @@
 from typing import List
 from fastapi import APIRouter, Depends, status, Response, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from app.db.database import get_db
-from app.models import schemas, user
+from app.models import schemas, user as UserModel
 from datetime import datetime
-from .ofuscator import get_password_hash, verify_password, create_access_token
+from .ofuscator import get_password_hash, verify_password, create_access_token, verify_token
 from fastapi.security import OAuth2PasswordBearer
 from fastapi.security import OAuth2PasswordRequestForm
 
@@ -15,14 +16,30 @@ router = APIRouter(
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="user/login")
 
+@router.get('/valid_username/{username}', status_code=status.HTTP_200_OK)
+def validate_unique_username(
+    username,
+    db: Session = Depends(get_db)
+):
+    userDB = db.query(UserModel.User).filter(UserModel.User.user_name == username).first()
+
+    if not userDB:
+        return { "result":1, "msg":"OK" }
+    else:
+        return { "result":-1, "msg":f"The username '{username}' already taken!" }
+
+
 @router.post('/login', response_model=schemas.Token)
 def login(
     payload: OAuth2PasswordRequestForm = Depends(),
     db: Session = Depends(get_db)
 ):
-    user = db.query(user.User).filter(
-        (user.User.user_name == payload.username) or (user.User.email == payload.username)
-    ).first()
+    user = db.query(UserModel.User).filter(
+        or_(
+            UserModel.User.user_name == payload.username, 
+            UserModel.User.email == payload.username
+        )
+    ).filter().first()
 
     if not user:
         raise HTTPException(
@@ -49,9 +66,9 @@ def login(
 
     }
 
-@router.post("/signup")
+@router.post("/signup", status_code=status.HTTP_200_OK)
 def create_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
-    new_user = user.User(
+    new_user = UserModel.User(
         email=request.email,
         password=get_password_hash(request.password),
         user_name=request.user_name,
@@ -61,21 +78,30 @@ def create_user(request: schemas.UserCreate, db: Session = Depends(get_db)):
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    return new_user
+    return { 
+        "result":1, 
+        "msg":"OK" 
+    }
 
-
-@router.get("/", response_model=List[schemas.User])
-def all_fetch(
-    token: str = Depends(oauth2_scheme),
-    db: Session = Depends(get_db)
+@router.get("/session_valid", status_code=status.HTTP_200_OK)
+def Validate_token(
+    token: str = Depends(oauth2_scheme)
 ):
-    users = db.query(user.User).all()
-    return users
-
+    verify_token (token)
+    return { 
+        "result":1, 
+        "msg":"OK" 
+    }
 
 @router.get("/{id}", status_code=status.HTTP_200_OK, response_model=schemas.User)
-def show(id, response: Response, db: Session = Depends(get_db)):
-    user = db.query(user.User).filter(user.User.id == id).first()
+def show(
+    id, 
+    response: Response, 
+    db: Session = Depends(get_db),
+    token: str = Depends(oauth2_scheme)
+):
+    verify_token (token)
+    user = db.query(UserModel.User).filter(UserModel.User.id == id).first()
 
     if not user:
         raise HTTPException(
@@ -89,8 +115,14 @@ def show(id, response: Response, db: Session = Depends(get_db)):
 
 
 @router.put("/{id}", status_code=status.HTTP_202_ACCEPTED)
-def update(id, request: schemas.UserBase, db: Session = Depends(get_db)):
-    user = db.query(user.User).filter(user.User.id == id)
+def update(
+    id, 
+    request: schemas.UserBase, 
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    verify_token (token)
+    user = db.query(UserModel.User).filter(UserModel.User.id == id)
 
     if not user.first():
         raise HTTPException(
@@ -98,18 +130,23 @@ def update(id, request: schemas.UserBase, db: Session = Depends(get_db)):
             detail=f"User with the id={id} is not found"
         )
 
-    param = request.model_dump()
-    param["update_at"] = datetime.now()
+    params = request.model_dump(exclude_unset=True)
+    params["updated_at"] = datetime.now()
 
-    user.update(param)
+    user.update(params)   
     db.commit()
 
     return "Updated"
 
 
 @router.delete("/{id}", status_code=status.HTTP_202_ACCEPTED)
-def delete(id, db: Session = Depends(get_db)):
-    user = db.query(user.User).filter(user.User.id == id)
+def delete(
+    id, 
+    token: str = Depends(oauth2_scheme),
+    db: Session = Depends(get_db)
+):
+    verify_token (token)
+    user = db.query(UserModel.User).filter(UserModel.User.id == id)
 
     if not user.first():
         raise HTTPException(
