@@ -33,7 +33,8 @@ def upgrade() -> None:
     sa.Column('last_name', sa.String(length=100), nullable=True),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('email'),
-    sa.UniqueConstraint('user_name')
+    sa.UniqueConstraint('user_name'),
+    mysql_engine="InnoDB",
     )
     # ### end Alembic commands ###
 
